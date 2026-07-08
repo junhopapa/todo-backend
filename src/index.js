@@ -3,9 +3,8 @@ const dns = require("dns");
 
 require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
-if (!process.env.DYNO) {
-  dns.setServers(["8.8.8.8", "1.1.1.1"]);
-}
+// Atlas SRV DNS 조회 안정화 (로컬 Windows / Heroku 공통)
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const express = require("express");
 const cors = require("cors");
@@ -23,6 +22,7 @@ const MONGODB_URI =
     : "mongodb://localhost:27017/todo-backend");
 
 let isDbConnected = false;
+let lastDbError = "";
 
 app.use(
   cors({
@@ -45,6 +45,7 @@ app.get("/", (req, res) => {
   res.json({
     message: "Todo backend is running",
     dbConnected: isDbConnected,
+    ...(lastDbError && !isDbConnected ? { dbError: lastDbError } : {}),
   });
 });
 
@@ -71,7 +72,19 @@ async function connectDatabase() {
     serverSelectionTimeoutMS: 10000,
   });
   isDbConnected = true;
+  lastDbError = "";
   console.log("연결성공");
+}
+
+function scheduleReconnect() {
+  setInterval(() => {
+    if (isDbConnected) return;
+
+    connectDatabase().catch((err) => {
+      lastDbError = err.message;
+      console.error("MongoDB 연결 실패:", err.message);
+    });
+  }, 10000);
 }
 
 function startServer() {
@@ -90,8 +103,11 @@ function startServer() {
   });
 
   connectDatabase().catch((err) => {
+    lastDbError = err.message;
     console.error("MongoDB 연결 실패:", err.message);
   });
+
+  scheduleReconnect();
 }
 
 startServer();
