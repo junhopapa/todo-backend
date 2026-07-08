@@ -3,8 +3,10 @@ const dns = require("dns");
 
 require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
-// Windows 환경에서 mongodb+srv SRV DNS 조회 실패 방지
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
+if (!process.env.DYNO) {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+}
+
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
@@ -15,9 +17,21 @@ const taskRoutes = require("./routes/tasks");
 const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/todo-backend";
+  process.env.MONGODB_URI ||
+  (process.env.NODE_ENV === "production"
+    ? ""
+    : "mongodb://localhost:27017/todo-backend");
 
-app.use(cors());
+let isDbConnected = false;
+
+app.use(
+  cors({
+    origin: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+app.options(/.*/, cors());
 app.use(express.json());
 app.set("etag", false);
 
@@ -28,18 +42,39 @@ app.use(["/api", "/todo"], (req, res, next) => {
 });
 
 app.get("/", (req, res) => {
-  res.json({ message: "Todo backend is running" });
+  res.json({
+    message: "Todo backend is running",
+    dbConnected: isDbConnected,
+  });
 });
 
-app.use("/api/tasks", taskRoutes);
-app.use("/todo", taskRoutes);
+app.use("/api/tasks", (req, res, next) => {
+  if (!isDbConnected) {
+    return res.status(503).json({ message: "Database is not connected yet." });
+  }
+  next();
+}, taskRoutes);
 
-async function startServer() {
+app.use("/todo", (req, res, next) => {
+  if (!isDbConnected) {
+    return res.status(503).json({ message: "Database is not connected yet." });
+  }
+  next();
+}, taskRoutes);
+
+async function connectDatabase() {
+  if (!MONGODB_URI) {
+    throw new Error("MONGODB_URI environment variable is required.");
+  }
+
   await mongoose.connect(MONGODB_URI, {
     serverSelectionTimeoutMS: 10000,
   });
+  isDbConnected = true;
   console.log("연결성공");
+}
 
+function startServer() {
   const server = app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
@@ -53,9 +88,10 @@ async function startServer() {
     }
     throw err;
   });
+
+  connectDatabase().catch((err) => {
+    console.error("MongoDB 연결 실패:", err.message);
+  });
 }
 
-startServer().catch((err) => {
-  console.error("MongoDB 연결 실패:", err.message);
-  process.exit(1);
-});
+startServer();

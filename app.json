@@ -1,0 +1,23 @@
+{
+  "name": "todo-backend",
+  "description": "Todo API backend for Heroku",
+  "repository": "https://github.com/junhopapa/todo-backend",
+  "keywords": ["node", "express", "mongodb"],
+  "env": {
+    "MONGODB_URI": {
+      "description": "MongoDB Atlas connection string",
+      "required": true
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ]
+}
