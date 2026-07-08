@@ -21,7 +21,7 @@ app.use(cors());
 app.use(express.json());
 app.set("etag", false);
 
-app.use("/api", (req, res, next) => {
+app.use(["/api", "/todo"], (req, res, next) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate");
   res.set("Pragma", "no-cache");
   next();
@@ -32,6 +32,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/tasks", taskRoutes);
+app.use("/todo", taskRoutes);
 
 async function startServer() {
   await mongoose.connect(MONGODB_URI, {
