@@ -7,6 +7,10 @@
     "MONGODB_URI": {
       "description": "MongoDB Atlas connection string",
       "required": true
+    },
+    "PORT": {
+      "description": "Heroku가 자동으로 설정합니다. Config Vars에 직접 추가하지 마세요.",
+      "required": false
     }
   },
   "formation": {
